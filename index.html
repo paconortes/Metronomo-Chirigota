@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Secuenciador Pasodoble Chirigota (32 pasos)</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #111;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      margin-bottom: 20px;
+      background: #1d1d1d;
+      padding: 15px 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.4);
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      font-size: 14px;
+    }
+
+    label {
+      margin-bottom: 4px;
+    }
+
+    input[type="number"],
+    input[type="range"] {
+      padding: 4px 6px;
+      border-radius: 6px;
+      border: 1px solid #444;
+      background: #222;
+      color: #eee;
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-size: 15px;
+      font-weight: 600;
+      background: #2ecc71;
+      color: #111;
+      transition: transform 0.05s ease, box-shadow 0.05s ease, background 0.2s ease;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+      white-space: nowrap;
+    }
+
+    button.stop {
+      background: #e74c3c;
+    }
+
+    button.secondary {
+      background: #3498db;
+    }
+
+    button:active {
+      transform: translateY(1px);
+      box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+    }
+
+    .main-layout {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+      max-width: 980px;
+    }
+
+    .sequencer {
+      width: 100%;
+      background: #1b1b1b;
+      padding: 15px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.4);
+      box-sizing: border-box;
+      overflow-x: auto;
+    }
+
+    .seq-header {
+      display: grid;
+      grid-template-columns: 80px repeat(32, 1fr);
+      gap: 3px;
+      font-size: 10px;
+      margin-bottom: 4px;
+      text-align: center;
+      color: #bbb;
+    }
+
+    .seq-header div {
+      padding: 2px 0;
+    }
+
+    .seq-row {
+      display: grid;
+      grid-template-columns: 80px repeat(32, 1fr);
+      gap: 3px;
+      margin-bottom: 6px;
+      align-items: center;
+    }
+
+    .seq-row-label {
+      font-size: 13px;
+      text-align: right;
+      padding-right: 4px;
+      color: #ddd;
+    }
+
+    .step {
+      height: 24px;
+      border-radius: 4px;
+      background: #2a2a2a;
+      border: 1px solid #444;
+      cursor: pointer;
+      box-sizing: border-box;
+      position: relative;
+      transition: background 0.1s ease, border-color 0.1s ease, transform 0.05s ease;
+    }
+
+    .step.active {
+      background: #27ae60;
+      border-color: #2ecc71;
+    }
+
+    .step.beat-border {
+      box-shadow: inset 0 0 0 2px #555;
+    }
+
+    .step.playing {
+      transform: scale(1.05);
+      box-shadow: 0 0 8px rgba(255,255,255,0.22);
+    }
+
+    .beat-display {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .beat-number {
+      font-size: 120px;
+      font-weight: 800;
+      line-height: 1;
+      text-align: center;
+      width: 260px;
+      height: 260px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at 30% 30%, #444, #000);
+      box-shadow: 0 0 40px rgba(0,0,0,0.7);
+      border: 4px solid #555;
+      transition: transform 0.07s ease, box-shadow 0.07s ease, border-color 0.07s ease;
+    }
+
+    .beat-number.flash {
+      transform: scale(1.06);
+      box-shadow: 0 0 60px rgba(255,255,255,0.18);
+    }
+
+    .beat-number.accent {
+      border-color: #f1c40f;
+      color: #f1c40f;
+    }
+
+    .beat-number.non-accent {
+      border-color: #3498db;
+      color: #3498db;
+    }
+
+    .info {
+      font-size: 13px;
+      opacity: 0.8;
+      text-align: center;
+      max-width: 520px;
+    }
+
+    @media (max-width: 700px) {
+      .beat-number {
+        width: 200px;
+        height: 200px;
+        font-size: 90px;
+      }
+      .step {
+        height: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Secuenciador Pasodoble Chirigota (32 pasos)</h1>
+
+  <div class="controls">
+    <div class="control-group">
+      <label for="tempo">Tempo (BPM)</label>
+      <input id="tempo" type="number" min="40" max="240" value="130">
+    </div>
+
+    <div class="control-group">
+      <label for="volume">Volumen</label>
+      <input id="volume" type="range" min="0" max="100" value="75">
+    </div>
+
+    <div class="control-group" style="justify-content:flex-end;">
+      <button id="startBtn">▶️ Iniciar</button>
+    </div>
+
+    <div class="control-group" style="justify-content:flex-end;">
+      <button id="stopBtn" class="stop">⏹ Detener</button>
+    </div>
+
+    <div class="control-group" style="justify-content:flex-end;">
+      <button id="clearBtn" class="secondary">🧹 Limpiar patrón</button>
+    </div>
+
+    <div class="control-group" style="justify-content:flex-end;">
+      <button id="loadPresetBtn" class="secondary">🎭 Cargar patrón Pasodoble</button>
+    </div>
+
+    <div class="control-group" style="justify-content:flex-end;">
+      <button id="savePresetBtn" class="secondary">💾 Guardar patrón como Pasodoble</button>
+    </div>
+  </div>
+
+  <div class="main-layout">
+    <div class="sequencer">
+      <div class="seq-header" id="seqHeader"></div>
+
+      <div class="seq-row" id="rowKick">
+        <div class="seq-row-label">Bombo</div>
+      </div>
+
+      <div class="seq-row" id="rowSnare">
+        <div class="seq-row-label">Caja</div>
+      </div>
+    </div>
+
+    <div class="beat-display">
+      <div id="beatNumber" class="beat-number accent">1</div>
+      <div class="info">
+        Compás fijo: <strong>4/4</strong> (la negra = BPM).<br>
+        Rejilla de <strong>32 pasos</strong> (8 por tiempo ⇒ semicorcheas).
+        Haz clic para activar/desactivar golpes de <strong>bombo</strong> y <strong>caja</strong>.  
+        La columna iluminada es la que está sonando.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let audioCtx = null;
+    let isPlaying = false;
+    let timerId = null;
+
+    const stepsPerBeat = 8;       // semicorcheas (doble subdivisión)
+    const beatsPerBar = 4;
+    const stepsPerBar = stepsPerBeat * beatsPerBar; // 32
+
+    let currentStep = 0;          // 0..31
+
+    // Patrón (true = golpe)
+    let patternKick = new Array(stepsPerBar).fill(false);
+    let patternSnare = new Array(stepsPerBar).fill(false);
+
+    const tempoInput = document.getElementById('tempo');
+    const volumeSlider = document.getElementById('volume');
+    const beatNumberEl = document.getElementById('beatNumber');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const loadPresetBtn = document.getElementById('loadPresetBtn');
+    const savePresetBtn = document.getElementById('savePresetBtn');
+
+    const seqHeader = document.getElementById('seqHeader');
+    const rowKick = document.getElementById('rowKick');
+    const rowSnare = document.getElementById('rowSnare');
+
+    let noiseBuffer = null;
+    const PRESET_KEY = "chirigotaPasodoblePreset_v1";
+
+    function initAudio() {
+      if (!audioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AC();
+      }
+    }
+
+    function createNoiseBuffer() {
+      if (!audioCtx || noiseBuffer) return;
+      const duration = 0.2;
+      const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * duration, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+      noiseBuffer = buffer;
+    }
+
+    function playKick(strength) {
+      if (!audioCtx) return;
+      if (strength == null) strength = 1.0;
+
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      const baseVol = Math.max(0.001, volumeSlider.value / 100);
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(90, now);
+      osc.frequency.exponentialRampToValueAtTime(45, now + 0.13);
+
+      gain.gain.setValueAtTime(baseVol * 1.3 * strength, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.17);
+    }
+
+    function playSnare(strength) {
+      if (!audioCtx) return;
+      if (strength == null) strength = 1.0;
+
+      createNoiseBuffer();
+
+      const now = audioCtx.currentTime;
+
+      // Ruido para el chasquido
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = noiseBuffer;
+
+      const noiseFilter = audioCtx.createBiquadFilter();
+      noiseFilter.type = "bandpass";
+      noiseFilter.frequency.setValueAtTime(2500, now);
+      noiseFilter.Q.setValueAtTime(0.7, now);
+
+      const noiseGain = audioCtx.createGain();
+      const baseVol = Math.max(0.001, volumeSlider.value / 100);
+
+      noiseGain.gain.setValueAtTime(baseVol * 1.2 * strength, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+
+      noise.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(audioCtx.destination);
+
+      noise.start(now);
+      noise.stop(now + 0.12);
+
+      // Pequeño tono para cuerpo de caja
+      const tone = audioCtx.createOscillator();
+      const toneGain = audioCtx.createGain();
+
+      tone.type = "triangle";
+      tone.frequency.setValueAtTime(200, now);
+      tone.frequency.exponentialRampToValueAtTime(140, now + 0.05);
+
+      toneGain.gain.setValueAtTime(baseVol * 0.5 * strength, now);
+      toneGain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+
+      tone.connect(toneGain);
+      toneGain.connect(audioCtx.destination);
+
+      tone.start(now);
+      tone.stop(now + 0.08);
+    }
+
+    function updateBeatVisual() {
+      const beat = Math.floor(currentStep / stepsPerBeat) + 1;  // 1..4
+      const accent = (beat === 1);
+
+      beatNumberEl.textContent = beat;
+      beatNumberEl.classList.remove("accent", "non-accent", "flash");
+      if (accent) {
+        beatNumberEl.classList.add("accent");
+      } else {
+        beatNumberEl.classList.add("non-accent");
+      }
+      void beatNumberEl.offsetWidth;
+      beatNumberEl.classList.add("flash");
+      setTimeout(() => beatNumberEl.classList.remove("flash"), 80);
+    }
+
+    function clearPlayingHighlights() {
+      const allSteps = document.querySelectorAll(".step");
+      allSteps.forEach(step => step.classList.remove("playing"));
+    }
+
+    function setPlayingColumn(col) {
+      clearPlayingHighlights();
+      const kickStep = document.querySelector(`.step[data-inst="kick"][data-step="${col}"]`);
+      const snareStep = document.querySelector(`.step[data-inst="snare"][data-step="${col}"]`);
+      if (kickStep) kickStep.classList.add("playing");
+      if (snareStep) snareStep.classList.add("playing");
+    }
+
+    function tickStep() {
+      if (!audioCtx || !isPlaying) return;
+
+      updateBeatVisual();
+      setPlayingColumn(currentStep);
+
+      if (patternKick[currentStep]) {
+        const isBarStart = (currentStep === 0);
+        playKick(isBarStart ? 1.1 : 0.8);
+      }
+      if (patternSnare[currentStep]) {
+        playSnare(1.0);
+      }
+
+      currentStep = (currentStep + 1) % stepsPerBar;
+    }
+
+    function scheduleNextStep() {
+      if (!isPlaying) return;
+
+      const bpm = Math.max(40, Math.min(240, parseInt(tempoInput.value) || 130));
+      const beatMs = 60000 / bpm;
+      const stepMs = beatMs / stepsPerBeat;
+
+      timerId = setTimeout(() => {
+        tickStep();
+        scheduleNextStep();
+      }, stepMs);
+    }
+
+    function start() {
+      if (isPlaying) return;
+      initAudio();
+      if (audioCtx.state === "suspended") {
+        audioCtx.resume();
+      }
+      isPlaying = true;
+      currentStep = 0;
+      tickStep();
+      scheduleNextStep();
+    }
+
+    function stop() {
+      isPlaying = false;
+      if (timerId) {
+        clearTimeout(timerId);
+        timerId = null;
+      }
+      clearPlayingHighlights();
+    }
+
+    function clearPattern() {
+      for (let i = 0; i < stepsPerBar; i++) {
+        patternKick[i] = false;
+        patternSnare[i] = false;
+      }
+      refreshGridFromPattern();
+    }
+
+    // --- Presets y guardado ---
+
+    function loadDefaultPasodoblePreset() {
+      // Patrón de ejemplo en 32 pasos. Muy simple, para que lo ajustes.
+      clearPattern();
+
+      // Bombo en 1 y 3 (pasos 0 y 16)
+      patternKick[0] = true;
+      patternKick[16] = true;
+
+      // Caja: pequeños redobles en torno al 1 y al 3, y cierre al final
+      // Beat 1 (pasos 0-7)
+      patternSnare[2] = true;
+      patternSnare[3] = true;
+      patternSnare[6] = true;
+
+      // Beat 2 (8-15)
+      patternSnare[10] = true;
+      patternSnare[11] = true;
+
+      // Beat 3 (16-23)
+      patternSnare[18] = true;
+      patternSnare[19] = true;
+      patternSnare[22] = true;
+
+      // Beat 4 (24-31)
+      patternSnare[26] = true;
+      patternSnare[27] = true;
+      patternSnare[30] = true;
+      patternSnare[31] = true;
+
+      refreshGridFromPattern();
+    }
+
+    function savePasodoblePreset() {
+      const data = {
+        kick: patternKick,
+        snare: patternSnare
+      };
+      try {
+        localStorage.setItem(PRESET_KEY, JSON.stringify(data));
+        alert("Patrón guardado como 'Pasodoble'.\nCuando pulses 'Cargar patrón Pasodoble', se usará este.");
+      } catch (e) {
+        console.warn("No se pudo guardar el preset:", e);
+        alert("No se ha podido guardar el patrón (revisa permisos de almacenamiento del navegador).");
+      }
+    }
+
+    function loadPasodoblePreset() {
+      try {
+        const raw = localStorage.getItem(PRESET_KEY);
+        if (raw) {
+          const data = JSON.parse(raw);
+          if (Array.isArray(data.kick) && Array.isArray(data.snare) &&
+              data.kick.length === stepsPerBar && data.snare.length === stepsPerBar) {
+            patternKick = data.kick.slice();
+            patternSnare = data.snare.slice();
+            refreshGridFromPattern();
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn("Error cargando preset, cargando por defecto:", e);
+      }
+      // Si no hay guardado válido, cargamos el de ejemplo
+      loadDefaultPasodoblePreset();
+    }
+
+    // === Construcción de la rejilla ===
+    function buildGrid() {
+      seqHeader.innerHTML = "";
+      const empty = document.createElement("div");
+      empty.textContent = "";
+      seqHeader.appendChild(empty);
+
+      for (let i = 0; i < stepsPerBar; i++) {
+        const div = document.createElement("div");
+        const beatIndex = Math.floor(i / stepsPerBeat) + 1;  // 1..4
+        const stepInBeat = (i % stepsPerBeat) + 1;           // 1..8
+        div.textContent = beatIndex + "." + stepInBeat;
+        seqHeader.appendChild(div);
+      }
+
+      for (let i = 0; i < stepsPerBar; i++) {
+        const stepKick = document.createElement("div");
+        stepKick.className = "step";
+        if (i % stepsPerBeat === 0) {
+          stepKick.classList.add("beat-border");
+        }
+        stepKick.dataset.inst = "kick";
+        stepKick.dataset.step = i;
+
+        stepKick.addEventListener("click", () => {
+          patternKick[i] = !patternKick[i];
+          stepKick.classList.toggle("active", patternKick[i]);
+        });
+
+        rowKick.appendChild(stepKick);
+
+        const stepSnare = document.createElement("div");
+        stepSnare.className = "step";
+        if (i % stepsPerBeat === 0) {
+          stepSnare.classList.add("beat-border");
+        }
+        stepSnare.dataset.inst = "snare";
+        stepSnare.dataset.step = i;
+
+        stepSnare.addEventListener("click", () => {
+          patternSnare[i] = !patternSnare[i];
+          stepSnare.classList.toggle("active", patternSnare[i]);
+        });
+
+        rowSnare.appendChild(stepSnare);
+      }
+    }
+
+    function refreshGridFromPattern() {
+      for (let i = 0; i < stepsPerBar; i++) {
+        const stepKick = document.querySelector(`.step[data-inst="kick"][data-step="${i}"]`);
+        const stepSnare = document.querySelector(`.step[data-inst="snare"][data-step="${i}"]`);
+
+        if (stepKick) {
+          stepKick.classList.toggle("active", !!patternKick[i]);
+        }
+        if (stepSnare) {
+          stepSnare.classList.toggle("active", !!patternSnare[i]);
+        }
+      }
+    }
+
+    // Listeners
+    startBtn.addEventListener("click", start);
+    stopBtn.addEventListener("click", stop);
+    clearBtn.addEventListener("click", () => {
+      stop();
+      clearPattern();
+    });
+    loadPresetBtn.addEventListener("click", () => {
+      stop();
+      loadPasodoblePreset();
+    });
+    savePresetBtn.addEventListener("click", () => {
+      stop();
+      savePasodoblePreset();
+    });
+
+    tempoInput.addEventListener("change", () => {
+      if (isPlaying) {
+        stop();
+        start();
+      }
+    });
+
+    // Init
+    buildGrid();
+    loadPasodoblePreset(); // intenta cargar guardado; si no hay, pone el de ejemplo
+  </script>
+</body>
+</html>
